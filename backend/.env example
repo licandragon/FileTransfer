@@ -1,0 +1,7 @@
+PORT=3000
+
+DATABASE_URL=postgres://user:password@localhost:5432/filetransfer
+
+SUPABASE_URL=supabase_url
+SUPABASE_SERVICE_KEY=your_service_key
+SUPABASE_BUCKET=uploads
