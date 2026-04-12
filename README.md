@@ -53,7 +53,7 @@ Backend (Go)
 
 ## 🚀 Instalación
 
-## 1. Clonar repositorio
+### 1. Clonar repositorio
 
 ```bash
 git clone https://github.com/licandragon/FileTransfer.git
