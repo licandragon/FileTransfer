@@ -8,7 +8,7 @@ type Transfer struct {
 	DownloadCount int        `json:"download_count" db:"download_count"`
 	SenderEmail   string     `json:"sender_email" db:"sender_email"`
 	SubjectEmail  string     `json:"subject_email" db:"subject_email"`
-	Message       *string    `json:"message" db:"message"`
+	MessageEmail  *string    `json:"message_email" db:"message_email"`
 	Recipients    any        `json:"recipients" db:"recipients"`
 	UserID        *string    `json:"user_id" db:"user_id"`
 	ExpiresAt     *time.Time `json:"expires_at" db:"expires_at"`

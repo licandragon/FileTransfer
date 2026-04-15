@@ -20,14 +20,14 @@ func (r *FileRepository) Create(ctx context.Context, file *models.File) error {
 
 	query := `
 	INSERT INTO files
-	(id, transfer_id, filename, original_name, size, mime_type, storage_path, bucket)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+	(transfer_id, filename, original_name, size, mime_type, storage_path, bucket)
+	VALUES ($1,$2,$3,$4,$5,$6,$7)
+	RETURNING id, created_at
 	`
 
-	_, err := r.db.Exec(
+	err := r.db.QueryRow(
 		ctx,
 		query,
-		file.ID,
 		file.TransferID,
 		file.Filename,
 		file.OriginalName,
@@ -35,13 +35,13 @@ func (r *FileRepository) Create(ctx context.Context, file *models.File) error {
 		file.MimeType,
 		file.StoragePath,
 		file.Bucket,
-	)
+	).Scan(&file.ID, &file.CreatedAt)
 
 	return err
 }
 
 // Funcion que obtiene los archivos por el transferID
-func (r *FileRepository) GetByTransferID(ctx context.Context, transferID string) ([]models.File, error) {
+func (r *FileRepository) GetFilesByTransferID(ctx context.Context, transferID string) ([]models.File, error) {
 
 	query := `
 	SELECT id, transfer_id, filename, original_name, size, mime_type, storage_path, bucket, created_at

@@ -1,7 +1,9 @@
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE TABLE IF NOT EXISTS transfers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     download_token TEXT NOT NULL UNIQUE,
     sender_email TEXT NOT NULL,
+    subject_email TEXT NOT NOT
     message_email TEXT NOT NULL,
     recipients JSONB DEFAULT '[]',
     user_id UUID DEFAULT NULL,
