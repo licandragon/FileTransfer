@@ -1,6 +1,15 @@
 PORT=3000
 
-DATABASE_URL=postgres://user:password@localhost:5432/filetransfer
+DATABASE_URL=postgres://postgres:postgresd@localhost:5432/filetransfer
+DATABASE_URL=postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_HOST/$DB_NAME
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=filetransfer
+DB_SSLMODE=disable
+
 
 SUPABASE_URL=supabase_url
 SUPABASE_SERVICE_KEY=your_service_key

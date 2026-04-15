@@ -1,5 +1,5 @@
 <template>
-    <div class="w-[420px] bg-[#ffffff] dark:bg-[#111113] rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,.25)] p-5 border border-[rgba(0,0,0,0.05)] dark:border-[rgba(255,255,255,.05)]"
+    <div class="w-full max-w-[420px] mx-auto bg-[#ffffff] dark:bg-[#111113] rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,.25)] p-5 border border-[rgba(0,0,0,0.05)] dark:border-[rgba(255,255,255,.05)]"
         @dragover.prevent="isDragging = true" @dragleave="isDragging = false" @drop.prevent="handleDrop"
         :class="isDragging ? 'ring-2 ring-blue-500' : ''">
 
@@ -34,7 +34,7 @@
             <div v-else class="space-y-3">
 
                 <!-- Lista -->
-                <div class="bg-[#1a1a1d] rounded-2xl p-3 space-y-2">
+                <div class="bg-[#1a1a1d] rounded-2xl p-3 space-y-2 max-h-[193px] overflow-y-auto custom-scrollbar">
 
                     <div v-for="(item, index) in items" :key="index"
                         class="flex justify-between items-center text-sm text-gray-300 bg-[#202024] px-3 py-2 rounded-xl">
@@ -68,7 +68,7 @@
 
                     <!-- 🔥 Dropdown Añadir más -->
                     <div class="relative">
-                        <button @click="showAddMenu = !showAddMenu"
+                        <button @click.stop="showAddMenu = !showAddMenu"
                             class="flex items-center gap-2 text-blue-500 hover:opacity-80">
                             ➕ Añadir más
                         </button>
@@ -97,27 +97,14 @@
         <!-- Inputs -->
         <input ref="fileInput" type="file" multiple class="hidden" @change="handleFiles" />
         <input ref="folderInput" type="file" webkitdirectory directory multiple class="hidden" @change="handleFiles" />
-
-        <!-- Info Row -->
-        <div class="flex justify-between items-center text-sm mb-5">
-            <span class="text-gray-500 dark:text-gray-400">
-                Consigue transferencias ilimitadas
-            </span>
-
-            <button class="text-purple-600 font-medium hover:opacity-80 transition">
-                ⚡ Aumentar límite
-            </button>
-        </div>
-
         <!-- Email To -->
-        <div class="border-b border-gray-200 dark:border-[#2a2a2e] py-3">
-            <div class="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span>Enviar email a</span>
-                <span>{{ emails.length }} de 3</span>
+        <div class="border-b border-gray-200 dark:border-[#2a2a2e]">
+            <div class="flex justify-end text-sm text-gray-600 dark:text-gray-400">
+                <span>{{ recipientEmails.length }} de 3</span>
             </div>
 
             <div class="flex flex-wrap gap-2 mb-2">
-                <div v-for="(email, index) in emails" :key="index"
+                <div v-for="(email, index) in recipientEmails" :key="index"
                     class="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs px-3 py-1 rounded-full flex items-center gap-2">
                     {{ email }}
                     <button @click="removeEmail(index)" class="text-xs hover:opacity-70">
@@ -125,33 +112,43 @@
                     </button>
                 </div>
             </div>
-
-            <input v-model="emailInput" @keydown.enter.prevent="addEmail" @keydown="handleKeydown" type="text"
-                placeholder="Agregar correo"
-                class="w-full bg-transparent outline-none text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400" />
+            <div class="border-b transition-colors duration-300 py-3"
+                :class="recipientEmailError ? 'border-red-500' : 'border-gray-200 dark:border-[#2a2a2e]'">
+                <input v-model="recipientEmailInput"
+                    @keydown.enter.prevent="addRecipientEmail"
+                    @keydown="handleKeydown"
+                    type="text" :disabled="recipientEmails.length >= 3"
+                    :placeholder="recipientEmails.length >= 3 ? 'Límite de correos alcanzado' : 'Enviar email a'"
+                    class="w-full bg-transparent outline-none text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400" />
+            </div>
+            <Transition name="fade">
+                <p v-if="recipientEmailError" class="text-[11px] text-red-500 mt-1 font-medium">
+                    {{ recipientEmailError }}
+                </p>
+            </Transition>
         </div>
 
         <!-- Inputs extra -->
         <div class="border-b border-gray-200 dark:border-[#2a2a2e] py-3">
-            <input type="email" placeholder="Tu email"
+            <input v-model="senderEmail" type="email" placeholder="Tu email"
                 class="w-full bg-transparent outline-none text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400" />
         </div>
 
         <div class="border-b border-gray-200 dark:border-[#2a2a2e] py-3">
-            <input type="text" placeholder="Título"
+            <input type="text" placeholder="Asunto"
                 class="w-full bg-transparent outline-none text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400" />
         </div>
 
         <div class="border-b border-gray-200 dark:border-[#2a2a2e] pt-5 mb-5">
             <textarea placeholder="Mensaje"
-                class="w-full bg-transparent outline-none text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400" />
+                class="w-full bg-transparent outline-none text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 resize-none overflow-y-auto custom-scrollbar" />
         </div>
 
         <!-- Opciones -->
         <div class="flex gap-3 mb-5">
 
             <div class="relative flex-1">
-                <button @click="toggleExpiry"
+                <button @click.stop="toggleExpiry"
                     class="w-full border border-gray-200 dark:border-[#2a2a2e] rounded-2xl py-3 px-4 text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-[#111113] flex justify-between">
                     📅 {{ selectedExpiry.label }}
                 </button>
@@ -159,10 +156,10 @@
                 <!-- Dropdown -->
                 <div v-if="showExpiry"
                     class="absolute bottom-14 left-0 w-full bg-white dark:bg-[#111113] border border-gray-200 dark:border-[#2a2a2e] rounded-2xl shadow-xl overflow-hidden z-20">
-                    <div v-for="option in expiryOptions" :key="option.value" @click="selectExpiry(option)"
+                    <div v-for="option in reversedExpiryOptions" :key="option.value" @click="selectExpiry(option)"
                         class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-[#1a1a1d] flex justify-between items-center">
                         <span>{{ option.label }}</span>
-                        <span v-if="selectedExpiry.value === option.value">✓</span>
+                        <span v-if="selectedExpiry.value === option.value" class="text-blue-500">✓</span>
                     </div>
                 </div>
             </div>
@@ -188,9 +185,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-
-
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 const fileInput = ref(null)
 const folderInput = ref(null)
@@ -198,8 +193,9 @@ const folderInput = ref(null)
 const files = ref([])
 const items = ref([])
 
-const emails = ref([])
-const emailInput = ref('')
+const recipientEmails = ref([])
+const recipientEmailInput = ref('')
+const senderEmail = ref('')
 
 const isDragging = ref(false)
 const showAddMenu = ref(false)
@@ -210,18 +206,40 @@ const selectFolder = () => folderInput.value.click()
 
 const handleFiles = (event) => {
     const selected = Array.from(event.target.files)
-    files.value.push(...selected)
-    processFiles(files.value)
+    addValidFiles(selected)
     event.target.value = null
 }
 
 const handleDrop = (event) => {
     isDragging.value = false
     const dropped = Array.from(event.dataTransfer.files)
-    files.value.push(...dropped)
-    processFiles(files.value)
+    addValidFiles(dropped)
 }
 
+const addValidFiles = (newFiles) => {
+    const filtered = newFiles.filter(file => {
+        const rootName = file.webkitRelativePath
+            ? file.webkitRelativePath.split('/')[0]
+            : file.name
+
+        const type = file.webkitRelativePath ? 'folder' : 'file'
+
+        const exists = items.value.some(item => {
+            return item.name === rootName && item.type === type
+        })
+
+        if (exists) {
+            console.warn(`${type === 'folder' ? 'Carpeta' : 'Archivo'} duplicado: ${rootName}`)
+            return false
+        }
+        return true
+    })
+
+    if (filtered.length > 0) {
+        files.value.push(...filtered)
+        processFiles(files.value)
+    }
+}
 // ================= GROUP =================
 const processFiles = (fileList) => {
     const map = {}
@@ -245,6 +263,7 @@ const processFiles = (fileList) => {
         } else {
             map[file.name] = {
                 type: 'file',
+                name: file.name,
                 file
             }
         }
@@ -277,19 +296,38 @@ const formatSize = (bytes) => {
 }
 
 // ================= EMAIL =================
-const addEmail = () => {
-    const email = emailInput.value.trim()
-    if (!email || emails.value.length >= 3 || emails.value.includes(email)) return
-    emails.value.push(email)
-    emailInput.value = ''
+const recipientEmailError = ref('')
+const addRecipientEmail = () => {
+    const email = recipientEmailInput.value.trim()
+    recipientEmailError.value = ''
+    if (!email) return
+    if (recipientEmails.value.length >= 3) {
+        recipientEmailError.value = 'Máximo 3 destinatarios'
+        return
+    }
+    if (recipientEmails.value.includes(email)) {
+        recipientEmailError.value = 'Este correo ya fue añadido'
+        return
+    }
+    if (!isValidEmail(email)) {
+        recipientEmailError.value = 'Formato de email inválido'
+        console.warn("Formato de email inválido")
+        return
+    }
+    recipientEmails.value.push(email)
+    recipientEmailInput.value = ''
 }
 
-const removeEmail = (index) => emails.value.splice(index, 1)
+watch(recipientEmailInput, () => {
+    if (recipientEmailError.value) recipientEmailError.value = ''
+})
+
+const removeEmail = (index) => recipientEmails.value.splice(index, 1)
 
 const handleKeydown = (event) => {
     if (event.key === ',' || event.key === 'Tab') {
         event.preventDefault()
-        addEmail()
+        addRecipientEmail()
     }
 }
 
@@ -303,14 +341,40 @@ const expiryOptions = [
     { value: 60, label: '60 días' },
     { value: 365, label: '1 año' }
 ]
+// Crear la versión invertida para el dropdown
+const reversedExpiryOptions = computed(() => [...expiryOptions].reverse())
 
-const selectedExpiry = ref(expiryOptions[1])
+const selectedExpiry = ref(expiryOptions[0])
 
 const toggleExpiry = () => showExpiry.value = !showExpiry.value
 const selectExpiry = (option) => {
     selectedExpiry.value = option
     showExpiry.value = false
 }
+
+const handleClickOutside = (e) => {
+    if (!e.target.closest('.dropdown-expiry-container')) showExpiry.value = false
+    if (!e.target.closest('.add-menu-container')) showAddMenu.value = false
+    if (!e.target.closest('.main-menu-container')) showMenu.value = false
+}
+
+const handleEscKey = (e) => {
+    if (e.key === 'Escape') {
+        showExpiry.value = false
+        showAddMenu.value = false
+        showMenu.value = false
+    }
+}
+
+onMounted(() => {
+    window.addEventListener('click', handleClickOutside)
+    window.addEventListener('keydown', handleEscKey)
+})
+
+onUnmounted(() => {
+    window.removeEventListener('click', handleClickOutside)
+    window.removeEventListener('keydown', handleEscKey)
+})
 
 // ================= MENU =================
 const showMenu = ref(false)
@@ -332,6 +396,42 @@ const startUpload = () => {
         }
     }, 300)
 }
+// ================= VALIDACION DE CAMPOS =================
+const isValidEmail = (email) => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return regex.test(email)
+}
+
 </script>
 
-<style scoped></style>
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #2a2a2e;
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #3b82f6;
+    /* Cambia a azul al pasar el mouse */
+}
+
+/* Transición suave para el mensaje de error */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+    transform: translateY(-5px);
+}
+</style>
