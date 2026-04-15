@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/joho/godotenv"
 	"github.com/licandragon/FileTransfer/backend/internal/database"
 	"github.com/licandragon/FileTransfer/backend/internal/routes"
@@ -30,6 +31,7 @@ func main() {
 	defer db.Close()
 
 	app := fiber.New()
+	app.Use(cors.New())
 	routes.SetupRoutes(app, db)
 
 	log.Fatal(app.Listen(":" + port))

@@ -79,3 +79,5 @@ build/
 # ========================
 .DS_Store
 Thumbs.db
+
+test/

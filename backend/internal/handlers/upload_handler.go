@@ -36,22 +36,48 @@ func (h *UploadHandler) Upload(c fiber.Ctx) error {
 		})
 	}
 
+	senderEmail := ""
+	if val, ok := form.Value["sender_email"]; ok && len(val) > 0 {
+		senderEmail = val[0]
+	}
+
+	subjectEmail := ""
+	if val, ok := form.Value["subject_email"]; ok && len(val) > 0 {
+		subjectEmail = val[0]
+	}
+
+	var messagePtr *string
+	if val, ok := form.Value["message_email"]; ok && len(val) > 0 && val[0] != "" {
+		msg := val[0]
+		messagePtr = &msg
+	}
+
+	recipients := []string{}
+	if val, ok := form.Value["recipients"]; ok {
+		recipients = val
+	}
+
 	ctx := context.Background()
+	expiration := time.Now().Add(7 * 24 * time.Hour)
 	// 1. Crear Transfer
 	transfer := models.Transfer{
-		ID:            uuid.New().String(),
 		DownloadToken: uuid.New().String(),
-		CreatedAt:     time.Now(),
+		SenderEmail:   senderEmail,
+		SubjectEmail:  subjectEmail,
+		MessageEmail:  messagePtr,
+		Recipients:    recipients,
+		UserID:        nil,         // O un ID de usuario por defecto si es obligatorio
+		ExpiresAt:     &expiration, // Expira en 7 días
 	}
 
 	err = h.TransferRepo.Create(ctx, &transfer)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
-			"error": "failed to create transfer",
+			"error": "Error DB: " + err.Error(),
 		})
 	}
 
-	return c.JSON(fiber.Map{
+	return c.Status(200).JSON(fiber.Map{
 		"status":         "complete",
 		"download_token": transfer.DownloadToken,
 	})

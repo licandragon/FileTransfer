@@ -1,39 +1,48 @@
 # 1. Detección del Sistema Operativo
 ifeq ($(OS),Windows_NT)
-    # Configuración para Windows
-    SHELL := powershell.exe
-    # En PowerShell el separador es ';'
-    SEP := ;
-    # Comando para abrir terminal nueva en Windows
-    EXT_TERM := start powershell -NoExit -Command
+	# Configuración para Windows
+	SHELL := powershell.exe
+	SEP := ;
+    CURL_CMD := curl.exe
 else
-    # Configuración para Linux/macOS
-    SHELL := /bin/sh
-    # En Bash/Sh el separador es '&&'
-    SEP := &&
-    # Comando para abrir terminal nueva (esto varía según la distro, ej. gnome-terminal)
-    EXT_TERM := x-terminal-emulator -e
+	# Configuración para Linux/macOS
+	SHELL := /bin/sh
+	SEP := &&
+    CURL_CMD := curl
+
 endif
 
-.PHONY: go-run npm-dev dev
+# Declarar todos los targets como PHONY para evitar conflictos con archivos locales
+.PHONY: go-run npm-dev dev docker-up docker-down migrate-up migrate-down test-upload
 
-# 2. Comandos usando las variables detectadas
+# Variable de conexión (Centralizada)
+DB_URL := "postgres://postgres:postgres@localhost:5432/filetransfer?sslmode=disable"
 
-# Ejecuta el Backend en la terminal actual
+FILE_PATH := ./test/image (4).png
+
+# 2. Comandos
+
 go-run:
 	cd backend $(SEP) go run cmd/api/main.go
 
-# Ejecuta el Frontend en la terminal actual
 npm-dev:
 	cd frontend $(SEP) npm run dev
+
+docker-up:
+	docker compose up -d
+
+docker-down:
+	docker compose down -v
+
 migrate-up:
-	cd backend $(SEP) migrate -path ./migrations -database "postgres://postgres:postgres@localhost:5432/filetransfer?sslmode=disable" up
+	cd backend $(SEP) migrate -path ./migrations -database $(DB_URL) up
 
 migrate-down:
-	cd backend $(SEP) migrate -path ./migrations -database "postgres://postgres:postgres@localhost:5432/filetransfer?sslmode=disable" down
+	cd backend $(SEP) migrate -path ./migrations -database $(DB_URL) down
 
+test-upload:
+	$(CURL_CMD) POST http://127.0.0.1:3000/upload -F "sender_email=tu_correo@ejemplo.com" -F "subject_email=Envio de prueba" -F "message_email=Hola desde PowerShell" -F "recipients=amigo1@ejemplo.com" -F "recipients=amigo2@ejemplo.com" -F "files=@$(FILE_PATH)"
 # Ejecuta ambos en terminales separadas
-# Nota: En Linux esto depende de tener un emulador de terminal instalado
 dev:
 ifeq ($(OS),Windows_NT)
 	powershell -Command "Start-Process powershell -ArgumentList '-NoExit', '-Command', 'cd backend; go run cmd/api/main.go'"
