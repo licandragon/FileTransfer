@@ -26,6 +26,11 @@ go-run:
 # Ejecuta el Frontend en la terminal actual
 npm-dev:
 	cd frontend $(SEP) npm run dev
+migrate-up:
+	cd backend $(SEP) migrate -path ./migrations -database "postgres://postgres:postgres@localhost:5432/filetransfer?sslmode=disable" up
+
+migrate-down:
+	cd backend $(SEP) migrate -path ./migrations -database "postgres://postgres:postgres@localhost:5432/filetransfer?sslmode=disable" down
 
 # Ejecuta ambos en terminales separadas
 # Nota: En Linux esto depende de tener un emulador de terminal instalado
