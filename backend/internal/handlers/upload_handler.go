@@ -46,10 +46,10 @@ func (h *UploadHandler) Upload(c fiber.Ctx) error {
 		subjectEmail = val[0]
 	}
 
-	var messagePtr *string
+	var messagePtr string
 	if val, ok := form.Value["message_email"]; ok && len(val) > 0 && val[0] != "" {
 		msg := val[0]
-		messagePtr = &msg
+		messagePtr = msg
 	}
 
 	recipients := []string{}

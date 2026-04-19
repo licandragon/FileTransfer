@@ -19,10 +19,6 @@ func NewTransferRepository(db *pgxpool.Pool) *TransferRepository {
 
 // Funcion para insertar un transfer en la base de datos
 func (r *TransferRepository) Create(ctx context.Context, transfer *models.Transfer) error {
-	recipientsJSON, err := json.Marshal(transfer.Recipients)
-	if err != nil {
-		return fmt.Errorf("error al serializar destinatarios: %w", err)
-	}
 
 	query := `
 	INSERT INTO transfers (
@@ -37,18 +33,23 @@ func (r *TransferRepository) Create(ctx context.Context, transfer *models.Transf
     RETURNING id, download_count, created_at
 	`
 
-	err = r.db.QueryRow(
+	err := r.db.QueryRow(
 		ctx,
 		query,
 		transfer.DownloadToken,
 		transfer.SenderEmail,
 		transfer.SubjectEmail,
 		transfer.MessageEmail,
-		recipientsJSON,
+		transfer.Recipients,
 		transfer.UserID,
 		transfer.ExpiresAt,
 	).Scan(&transfer.ID, &transfer.DownloadCount, &transfer.CreatedAt)
 
+	if err != nil {
+		return fmt.Errorf("error al crear transfer: %w", err)
+	}
+	mensaje := fmt.Sprintf("Transfer: %+v", transfer)
+	fmt.Println(mensaje)
 	return err
 }
 

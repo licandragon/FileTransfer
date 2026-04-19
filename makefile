@@ -41,7 +41,7 @@ migrate-down:
 	cd backend $(SEP) migrate -path ./migrations -database $(DB_URL) down
 
 test-upload:
-	$(CURL_CMD) POST http://127.0.0.1:3000/upload -F "sender_email=tu_correo@ejemplo.com" -F "subject_email=Envio de prueba" -F "message_email=Hola desde PowerShell" -F "recipients=amigo1@ejemplo.com" -F "recipients=amigo2@ejemplo.com" -F "files=@$(FILE_PATH)"
+	$(CURL_CMD) "http://127.0.0.1:3000/upload" -X POST -F "sender_email=tu_correo@ejemplo.com" -F "subject_email=Envio de prueba" -F "message_email=Hola desde PowerShell" -F "recipients=amigo1@ejemplo.com" -F "recipients=amigo2@ejemplo.com" -F "files=@$(FILE_PATH)"
 # Ejecuta ambos en terminales separadas
 dev:
 ifeq ($(OS),Windows_NT)

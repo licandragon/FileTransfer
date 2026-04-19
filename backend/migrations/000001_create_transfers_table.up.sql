@@ -6,10 +6,8 @@ CREATE TABLE IF NOT EXISTS transfers (
     sender_email TEXT NOT NULL,
     subject_email TEXT NOT NULL,
     message_email TEXT NOT NULL,
-    recipients JSONB DEFAULT '[]',
+    recipients TEXT[] DEFAULT '{}',
     user_id UUID DEFAULT NULL,
     expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
-CREATE INDEX IF NOT EXISTS idx_transfers_download_token ON transfers(download_token);
