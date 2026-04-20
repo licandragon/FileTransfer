@@ -1,25 +1,20 @@
 package handlers
 
 import (
-	"context"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/licandragon/FileTransfer/backend/internal/models"
-	"github.com/licandragon/FileTransfer/backend/internal/repository"
+	"github.com/licandragon/FileTransfer/backend/internal/services"
 )
 
 type UploadHandler struct {
-	TransferRepo *repository.TransferRepository
-	FileRepo     *repository.FileRepository
+	service services.TransferService
 }
 
-func NewUploadHandler(tr *repository.TransferRepository, fr *repository.FileRepository) *UploadHandler {
-	return &UploadHandler{
-		TransferRepo: tr,
-		FileRepo:     fr,
-	}
+func NewUploadHandler(service services.TransferService) *UploadHandler {
+	return &UploadHandler{service: service}
 }
 
 func (h *UploadHandler) Upload(c fiber.Ctx) error {
@@ -57,7 +52,7 @@ func (h *UploadHandler) Upload(c fiber.Ctx) error {
 		recipients = val
 	}
 
-	ctx := context.Background()
+	ctx := c.Context()
 	expiration := time.Now().Add(7 * 24 * time.Hour)
 	// 1. Crear Transfer
 	transfer := models.Transfer{
@@ -70,7 +65,7 @@ func (h *UploadHandler) Upload(c fiber.Ctx) error {
 		ExpiresAt:     &expiration, // Expira en 7 días
 	}
 
-	err = h.TransferRepo.Create(ctx, &transfer)
+	result, err := h.service.CreateTransfer(ctx, &transfer, files)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"error": "Error DB: " + err.Error(),
@@ -78,8 +73,12 @@ func (h *UploadHandler) Upload(c fiber.Ctx) error {
 	}
 
 	return c.Status(200).JSON(fiber.Map{
-		"status":         "complete",
-		"download_token": transfer.DownloadToken,
+		"status": "complete",
+		"data": fiber.Map{
+			"download_token": result.DownloadToken,
+			"sender_email":   result.SenderEmail,
+			"expires_at":     result.ExpiresAt,
+		},
 	})
 
 }

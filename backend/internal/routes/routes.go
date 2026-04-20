@@ -1,23 +1,32 @@
 package routes
 
 import (
+	"os"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/licandragon/FileTransfer/backend/internal/handlers"
 	"github.com/licandragon/FileTransfer/backend/internal/repository"
+	"github.com/licandragon/FileTransfer/backend/internal/services"
+	"github.com/licandragon/FileTransfer/backend/internal/storage"
 )
 
 // Aqui se definiran los endpoints de la API
 func SetupRoutes(app *fiber.App, db *pgxpool.Pool) {
 
-	transferRepo := repository.NewTransferRepository(db)
-	fileRepo := repository.NewFileRepository(db)
+	url := os.Getenv("SUPABASE_URL")
+	api_key := os.Getenv("SUPABASE_SERVICE_KEY")
 
-	uploadHandler := handlers.NewUploadHandler(transferRepo, fileRepo)
+	transfer := repository.NewTransferRepository(db)
+	storage := storage.NewSupabaseStorage(url, api_key)
 
-	app.Post("/upload", uploadHandler.Upload)
+	transferService := services.NewTransferService(transfer, storage)
 
-	app.Post("/download/:token", func(c fiber.Ctx) error {
+	handler := handlers.NewUploadHandler(transferService)
+
+	app.Post("/upload", handler.Upload)
+
+	app.Get("/download/:token", func(c fiber.Ctx) error {
 		return c.SendString("Descargando archivo")
 	})
 
