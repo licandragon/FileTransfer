@@ -25,7 +25,7 @@
 
       <!-- CODE CARD -->
 
-      <Upload />
+      <TransferCard/>
     </section>
 
     <!-- FEATURES -->
@@ -137,6 +137,7 @@ import { RouterLink } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import Upload from '@/components/Upload.vue'
 import CodeCard from '@/components/CodeCard.vue'
+import TransferCard from '@/components/transfer/TransferCard.vue'
 
 const { isAuthenticated } = useAuth()
 
