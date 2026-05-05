@@ -18,7 +18,7 @@ endif
 # Variable de conexión (Centralizada)
 DB_URL := "postgres://postgres:postgres@localhost:5432/filetransfer?sslmode=disable"
 
-FILE_PATH := ./test/image (4).png
+FILE_PATH := ./test/video-test2.mp4
 
 # 2. Comandos
 

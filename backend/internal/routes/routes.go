@@ -19,14 +19,14 @@ func SetupRoutes(app *fiber.App, db *pgxpool.Pool) {
 
 	transfer := repository.NewTransferRepository(db)
 	storage := storage.NewSupabaseStorage(url, api_key)
-
 	transferService := services.NewTransferService(transfer, storage)
-
 	handler := handlers.NewUploadHandler(transferService)
 
-	app.Post("/upload", handler.Upload)
+	api := app.Group("/api")
 
-	app.Get("/download/:token", func(c fiber.Ctx) error {
+	api.Post("/upload", handler.Upload)
+
+	api.Get("/download/:token", func(c fiber.Ctx) error {
 		return c.SendString("Descargando archivo")
 	})
 
