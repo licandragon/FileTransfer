@@ -1,6 +1,11 @@
 package handlers
 
 import (
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -9,76 +14,263 @@ import (
 	"github.com/licandragon/FileTransfer/backend/internal/services"
 )
 
-type UploadHandler struct {
+// ------------------------------------------------------------------
+// DTOs de entrada
+// ------------------------------------------------------------------
+
+type CreateTransferRequest struct {
+	SenderEmail  string     `json:"sender_email"`
+	SubjectEmail string     `json:"subject_email"`
+	MessageEmail string     `json:"message_email"`
+	Recipients   []string   `json:"recipients"`
+	TotalFiles   int        `json:"total_files"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+}
+
+// ------------------------------------------------------------------
+// DTOs de respuesta
+// ------------------------------------------------------------------
+
+type CreateTransferResponse struct {
+	UploadToken    uuid.UUID `json:"upload_token"`
+	StatusTransfer string    `json:"status_transfer"`
+}
+
+type FileUploadResponse struct {
+	FileIndex    int    `json:"file_index"`
+	Filename     string `json:"file_name"`
+	OriginalName string `json:"original_name"`
+	SizeFile     int64  `json:"size_file"`
+	MimeType     string `json:"mime_type"`
+	StatusFile   string `json:"status_file"`
+}
+
+type CompleteTransferResponse struct {
+	DownloadToken uuid.UUID `json:"download_token"`
+}
+
+type TransferDetailResponse struct {
+	ID             string       `json:"id,omitempty"`
+	DownloadToken  string       `json:"download_token"`
+	SenderEmail    string       `json:"sender_email"`
+	SubjectEmail   string       `json:"subject_email"`
+	MessageEmail   string       `json:"message_email"`
+	Recipients     []string     `json:"recipients"`
+	ExpiresAt      *time.Time   `json:"expires_at,omitempty"`
+	StatusTransfer string       `json:"status_transfer"`
+	TotalFiles     int          `json:"file_count,omitempty"`
+	Files          []FileDetail `json:"files"`
+	CreatedAt      time.Time    `json:"created_at"`
+}
+
+type TransferDownloadResponse struct {
+	SenderEmail  string       `json:"sender_email"`
+	SubjectEmail string       `json:"subject_email"`
+	MessageEmail string       `json:"message_email"`
+	ExpiresAt    *time.Time   `json:"expires_at,omitempty"`
+	Files        []FileDetail `json:"files"`
+}
+
+type FileDetail struct {
+	OriginalName string `json:"original_name"`
+	Size         int64  `json:"size"`
+	MimeType     string `json:"mime_type"`
+}
+
+// ------------------------------------------------------------------
+// Handler
+// ------------------------------------------------------------------
+
+type TransferHandler struct {
 	service services.TransferService
 }
 
-func NewUploadHandler(service services.TransferService) *UploadHandler {
-	return &UploadHandler{service: service}
+func NewTransferHandler(service services.TransferService) *TransferHandler {
+	return &TransferHandler{service: service}
 }
 
-func (h *UploadHandler) Upload(c fiber.Ctx) error {
-	form, err := c.MultipartForm()
+// POST /api/transfers
+func (h *TransferHandler) CreateTransfer(c fiber.Ctx) error {
+	body := c.Body()
+	log.Printf("Cuerpo recibido: %s", string(body))
+	log.Printf("CT: %s, Body: %q", c.Get("Content-Type"), string(c.Body()))
+
+	var req CreateTransferRequest
+	log.Printf("Cuerpo: %s", body)
+	if err := c.Bind().JSON(&req); err != nil {
+		log.Printf("Error binding: %v", err)
+		return c.Status(400).JSON(fiber.Map{"error": "Datos inválidos"})
+	}
+	if req.SenderEmail == "" || req.TotalFiles <= 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Faltan campos obligatorios"})
+	}
+
+	if req.ExpiresAt == nil {
+		exp := time.Now().Add(7 * 24 * time.Hour)
+		req.ExpiresAt = &exp
+	}
+
+	transfer := &models.Transfer{
+		SenderEmail:  req.SenderEmail,
+		SubjectEmail: req.SubjectEmail,
+		MessageEmail: req.MessageEmail,
+		Recipients:   req.Recipients,
+		TotalFiles:   req.TotalFiles,
+		ExpiresAt:    req.ExpiresAt,
+	}
+
+	result, err := h.service.CreateTransfer(c.Context(), transfer)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "Error al leer el formulario",
-		})
-	}
-	files := form.File["files"]
-	if len(files) == 0 {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "No se enviaron archivos",
-		})
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	senderEmail := ""
-	if val, ok := form.Value["sender_email"]; ok && len(val) > 0 {
-		senderEmail = val[0]
-	}
-
-	subjectEmail := ""
-	if val, ok := form.Value["subject_email"]; ok && len(val) > 0 {
-		subjectEmail = val[0]
-	}
-
-	var messagePtr string
-	if val, ok := form.Value["message_email"]; ok && len(val) > 0 && val[0] != "" {
-		msg := val[0]
-		messagePtr = msg
-	}
-
-	recipients := []string{}
-	if val, ok := form.Value["recipients"]; ok {
-		recipients = val
-	}
-
-	ctx := c.Context()
-	expiration := time.Now().Add(7 * 24 * time.Hour)
-	// 1. Crear Transfer
-	transfer := models.Transfer{
-		DownloadToken: uuid.New().String(),
-		SenderEmail:   senderEmail,
-		SubjectEmail:  subjectEmail,
-		MessageEmail:  messagePtr,
-		Recipients:    recipients,
-		UserID:        nil,         // O un ID de usuario por defecto si es obligatorio
-		ExpiresAt:     &expiration, // Expira en 7 días
-	}
-
-	result, err := h.service.CreateTransfer(ctx, &transfer, files)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Error DB: " + err.Error(),
-		})
-	}
-
-	return c.Status(200).JSON(fiber.Map{
-		"status": "complete",
-		"data": fiber.Map{
-			"download_token": result.DownloadToken,
-			"sender_email":   result.SenderEmail,
-			"expires_at":     result.ExpiresAt,
-		},
+	return c.Status(201).JSON(CreateTransferResponse{
+		UploadToken: result.UploadToken,
+		Status:      result.Status,
 	})
+}
 
+// POST /api/transfers/upload/:uploadToken/files
+func (h *TransferHandler) AddFile(c fiber.Ctx) error {
+	uploadToken := c.Params("uploadToken")
+
+	fileIndexStr := c.FormValue("file_index")
+	if fileIndexStr == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "file_index es requerido"})
+	}
+	fileIndex, err := strconv.Atoi(fileIndexStr)
+	if err != nil || fileIndex < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "file_index inválido"})
+	}
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Archivo no encontrado"})
+	}
+
+	uploaded, err := h.service.AddFileToTransfer(c.Context(), fileHeader, uploadToken, fileIndex)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(FileUploadResponse{
+		FileIndex:    uploaded.FileIndex,
+		Filename:     uploaded.Filename,
+		OriginalName: uploaded.OriginalName,
+		Size:         uploaded.Size,
+		MimeType:     uploaded.MimeType,
+		Status:       uploaded.Status,
+	})
+}
+
+// PATCH /api/transfers/upload/:uploadToken/complete
+func (h *TransferHandler) CompleteTransfer(c fiber.Ctx) error {
+	uploadToken := c.Params("uploadToken")
+
+	downloadToken, err := h.service.CompleteTransfer(c.Context(), uploadToken)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(CompleteTransferResponse{
+		DownloadToken: downloadToken,
+	})
+}
+
+// GET /api/download/:downloadToken
+func (h *TransferHandler) DownloadInfo(c fiber.Ctx) error {
+	downloadToken := c.Params("downloadToken")
+
+	transfer, err := h.service.GetTransferByDownloadToken(c.Context(), downloadToken)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Transferencia no encontrada"})
+	}
+
+	files := make([]FileDetail, len(transfer.Files))
+	for i, f := range transfer.Files {
+		files[i] = FileDetail{
+			OriginalName: f.OriginalName,
+			Size:         f.Size,
+			MimeType:     f.MimeType,
+		}
+	}
+
+	return c.JSON(TransferDownloadResponse{
+		SenderEmail:  transfer.SenderEmail,
+		SubjectEmail: transfer.SubjectEmail,
+		MessageEmail: transfer.MessageEmail,
+		ExpiresAt:    transfer.ExpiresAt,
+		Files:        files,
+	})
+}
+
+// GET /api/download/:downloadToken/files/:fileIndex
+func (h *TransferHandler) DownloadFile(c fiber.Ctx) error {
+	downloadToken := c.Params("downloadToken")
+	fileIndexStr := c.Params("fileIndex")
+	fileIndex, err := strconv.Atoi(fileIndexStr)
+	if err != nil || fileIndex < 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "índice de archivo inválido"})
+	}
+
+	transfer, err := h.service.GetTransferByDownloadToken(c.Context(), downloadToken)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Transferencia no encontrada"})
+	}
+
+	// Buscar el archivo por índice
+	var targetFile *models.File
+	for i := range transfer.Files {
+		if transfer.Files[i].FileIndex == fileIndex {
+			targetFile = &transfer.Files[i]
+			break
+		}
+	}
+	if targetFile == nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Archivo no encontrado"})
+	}
+
+	// Obtener URL firmada
+	signedURL, err := h.service.GetFileSignedURL(c.Context(), downloadToken, fileIndex)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Descargar el archivo desde Supabase
+	resp, err := http.Get(signedURL)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Error al obtener archivo"})
+	}
+	defer resp.Body.Close()
+
+	// Configurar headers para forzar descarga
+	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, targetFile.OriginalName))
+	c.Set("Content-Type", resp.Header.Get("Content-Type"))
+	if resp.ContentLength > 0 {
+		c.Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
+	}
+
+	// Transmitir el archivo al cliente sin cargarlo en memoria
+	_, err = io.Copy(c.Response().BodyWriter(), resp.Body)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Error al transmitir archivo"})
+	}
+
+	return nil
+}
+
+// ------------------------------------------------------------------
+// Placeholders para futuros endpoints con autenticación
+// ------------------------------------------------------------------
+
+func (h *TransferHandler) ListUserTransfers(c fiber.Ctx) error {
+	return c.Status(501).JSON(fiber.Map{"error": "no implementado"})
+}
+
+func (h *TransferHandler) GetTransfer(c fiber.Ctx) error {
+	return c.Status(501).JSON(fiber.Map{"error": "no implementado"})
+}
+
+func (h *TransferHandler) DeleteTransfer(c fiber.Ctx) error {
+	return c.Status(501).JSON(fiber.Map{"error": "no implementado"})
 }

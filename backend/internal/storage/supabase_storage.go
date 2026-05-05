@@ -3,10 +3,13 @@ package storage
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
+	"time"
 )
 
 // Se define Interfaz de Storage
@@ -17,14 +20,18 @@ type FileStorage interface {
 }
 
 type supabaseStorage struct {
-	url    string
-	apiKey string
+	url        string
+	apiKey     string
+	httpClient *http.Client
 }
 
 func NewSupabaseStorage(url, apiKey string) FileStorage {
 	return &supabaseStorage{
 		url:    url,
 		apiKey: apiKey,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -74,12 +81,82 @@ func (s *supabaseStorage) UploadFile(ctx context.Context, bucket string, path st
 	return fullURL, nil
 }
 
-// DeleteFile implements [services.FileStorage].
+// DeleteFile elimina un archivo del bucket.
 func (s *supabaseStorage) DeleteFile(ctx context.Context, bucket string, path string) error {
-	panic("unimplemented")
+	fullURL := fmt.Sprintf("%s/storage/v1/object/%s/%s", s.url, bucket, path)
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", fullURL, nil)
+	if err != nil {
+		return fmt.Errorf("error creando petición DELETE: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	req.Header.Set("apikey", s.apiKey)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("error en petición DELETE: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("supabase storage error al eliminar (%d): %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
 
-// CreateSignedURL implements [services.FileStorage].
+// CreateSignedURL genera una URL firmada temporal.
 func (s *supabaseStorage) CreateSignedURL(ctx context.Context, bucket string, path string, expiresIn int) (string, error) {
-	panic("unimplemented")
+	fullURL := fmt.Sprintf("%s/storage/v1/object/sign/%s/%s", s.url, bucket, path)
+
+	bodyJSON, err := json.Marshal(map[string]int{
+		"expiresIn": expiresIn,
+	})
+	if err != nil {
+		return "", fmt.Errorf("error creando JSON: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, bytes.NewBuffer(bodyJSON))
+	if err != nil {
+		return "", fmt.Errorf("error creando petición de firma: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	req.Header.Set("apikey", s.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("error en petición de firma: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("error leyendo respuesta de firma: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("supabase storage error al firmar (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		SignedURL string `json:"signedURL"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("error decodificando URL firmada: %w", err)
+	}
+
+	baseURL := strings.TrimRight(s.url, "/")
+
+	// Asegurar que la URL sea absoluta
+	if !strings.HasPrefix(result.SignedURL, "/storage/v1") {
+		result.SignedURL = "/storage/v1" + result.SignedURL
+	}
+
+	result.SignedURL = baseURL + result.SignedURL
+
+	return result.SignedURL, nil
 }

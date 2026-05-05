@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"mime/multipart"
 
 	"github.com/google/uuid"
@@ -13,8 +12,15 @@ import (
 
 // Se define interfaz del servicio
 type TransferService interface {
-	CreateTransfer(ctx context.Context, transfer *models.Transfer, files []*multipart.FileHeader) (*models.Transfer, error)
-	GetTransferByToken(ctx context.Context, token string) (*models.Transfer, error)
+	CreateTransfer(ctx context.Context, transfer *models.Transfer) (*models.Transfer, error)
+	AddFileToTransfer(ctx context.Context, fileHeader *multipart.FileHeader, uploadToken uuid.UUID, fileIndex int) (*models.File, error)
+	CompleteTransfer(ctx context.Context, uploadToken uuid.UUID) (uuid.UUID, error)
+	GetTransferByUploadToken(ctx context.Context, uploadToken uuid.UUID) (*models.Transfer, error)
+	GetTransferByDownloadToken(ctx context.Context, downloadToken uuid.UUID) (*models.Transfer, error)
+	GetTransferByID(ctx context.Context, id uuid.UUID) (*models.Transfer, error)
+	ListUserTransfers(ctx context.Context, userID uuid.UUID) ([]models.Transfer, error)
+	DeleteTransfer(ctx context.Context, transferID, userID uuid.UUID) error
+	GetFileSignedURL(ctx context.Context, downloadToken uuid.UUID, fileIndex int) (string, error)
 }
 
 type transferService struct {
@@ -29,46 +35,47 @@ func NewTransferService(repo repository.TransferRepository, storage storage.File
 	}
 }
 
-// CreateTransfer implements [TransferService].
-func (t *transferService) CreateTransfer(ctx context.Context, transfer *models.Transfer, files []*multipart.FileHeader) (*models.Transfer, error) {
-	transfer.DownloadToken = uuid.New()
-	bucketName := "transfers"
-
-	var uploadedFiles []models.File
-
-	// 2. Subir archivos a la nube
-	for _, fileHeader := range files {
-		// Creamos un nombre de archivo único para evitar colisiones en el storage
-		storagePath := fmt.Sprintf("%s/%s", transfer.DownloadToken, fileHeader.Filename)
-
-		_, err := t.storage.UploadFile(ctx, bucketName, storagePath, fileHeader)
-		if err != nil {
-			return nil, fmt.Errorf("error subiendo archivo %s: %w", fileHeader.Filename, err)
-		}
-
-		// Preparar el modelo de File para la DB
-		newFile := models.File{
-			Filename:     fileHeader.Filename,
-			OriginalName: fileHeader.Filename,
-			SizeFile:     fileHeader.Size,
-			MimeType:     fileHeader.Header.Get("Content-Type"),
-			StoragePath:  storagePath,
-			Bucket:       bucketName,
-		}
-		uploadedFiles = append(uploadedFiles, newFile)
-	}
-
-	transfer.Files = uploadedFiles
-
-	// Guardado transaccional en DB usando el Repo
-	if err := t.repo.CreateTransfer(ctx, transfer); err != nil {
-		return nil, fmt.Errorf("falló persistencia en DB: %w", err)
-	}
-
-	return transfer, nil
+// AddFileToTransfer implements [TransferService].
+func (t *transferService) AddFileToTransfer(ctx context.Context, fileHeader *multipart.FileHeader, uploadToken uuid.UUID, fileIndex int) (*models.File, error) {
+	panic("unimplemented")
 }
 
-// GetTransferByToken implements [TransferService].
-func (t *transferService) GetTransferByToken(ctx context.Context, token string) (*models.Transfer, error) {
-	panic("")
+// CompleteTransfer implements [TransferService].
+func (t *transferService) CompleteTransfer(ctx context.Context, uploadToken uuid.UUID) (uuid.UUID, error) {
+	panic("unimplemented")
+}
+
+// CreateTransfer implements [TransferService].
+func (t *transferService) CreateTransfer(ctx context.Context, transfer *models.Transfer) (*models.Transfer, error) {
+	panic("unimplemented")
+}
+
+// DeleteTransfer implements [TransferService].
+func (t *transferService) DeleteTransfer(ctx context.Context, transferID uuid.UUID, userID uuid.UUID) error {
+	panic("unimplemented")
+}
+
+// GetFileSignedURL implements [TransferService].
+func (t *transferService) GetFileSignedURL(ctx context.Context, downloadToken uuid.UUID, fileIndex int) (string, error) {
+	panic("unimplemented")
+}
+
+// GetTransferByDownloadToken implements [TransferService].
+func (t *transferService) GetTransferByDownloadToken(ctx context.Context, downloadToken uuid.UUID) (*models.Transfer, error) {
+	panic("unimplemented")
+}
+
+// GetTransferByID implements [TransferService].
+func (t *transferService) GetTransferByID(ctx context.Context, id uuid.UUID) (*models.Transfer, error) {
+	panic("unimplemented")
+}
+
+// GetTransferByUploadToken implements [TransferService].
+func (t *transferService) GetTransferByUploadToken(ctx context.Context, uploadToken uuid.UUID) (*models.Transfer, error) {
+	panic("unimplemented")
+}
+
+// ListUserTransfers implements [TransferService].
+func (t *transferService) ListUserTransfers(ctx context.Context, userID uuid.UUID) ([]models.Transfer, error) {
+	panic("unimplemented")
 }
