@@ -26,17 +26,35 @@ func SetupRoutes(app *fiber.App, db *pgxpool.Pool) {
 
 	api.Post("/upload", handler.Upload)
 
-	api.Get("/download/:token", func(c fiber.Ctx) error {
+	//Endpoind para url publica para
+	api.Get("/download/:downloadToken", func(c fiber.Ctx) error {
+		return c.SendString("URL de Transferencai")
+	})
+
+	// Endpoint para descargar un file en especifico de la transferencia
+	api.Post("/download/:downloadToken/files/:fileIndex", func(c fiber.Ctx) error {
 		return c.SendString("Descargando archivo")
 	})
 
-	app.Get("/file/:token", func(c fiber.Ctx) error {
+	//Grupo para la Creacion de la transferencia y subida de archivos a la misma
+	upload := api.Group("/transfer")
+
+	//Se crea transferencia (metadatos + file_count) -> devuelve upload_token
+	upload.Post("/init", func(c fiber.Ctx) error {
 		return c.SendString("Obteninedo archivo")
 	})
 
-	app.Delete("/file/:token", func(c fiber.Ctx) error {
-		return c.SendString("Eliminando archivo")
+	// Operaciones con upload_token (subida y completitud)
+
+	upload.Post("/upload/:uploadToken/files", func(c fiber.Ctx) error {
+		return c.SendString("Subiendo archivo")
 	})
+
+	upload.Patch("/upload/:uploadToken/files", func(c fiber.Ctx) error {
+		return c.SendString("Transferencia completa")
+	})
+
+
 
 	app.Get("/health", func(c fiber.Ctx) error {
 		return c.SendString("API Running")

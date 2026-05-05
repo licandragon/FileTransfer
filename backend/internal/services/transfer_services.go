@@ -31,7 +31,7 @@ func NewTransferService(repo repository.TransferRepository, storage storage.File
 
 // CreateTransfer implements [TransferService].
 func (t *transferService) CreateTransfer(ctx context.Context, transfer *models.Transfer, files []*multipart.FileHeader) (*models.Transfer, error) {
-	transfer.DownloadToken = uuid.New().String()
+	transfer.DownloadToken = uuid.New()
 	bucketName := "transfers"
 
 	var uploadedFiles []models.File
@@ -50,7 +50,7 @@ func (t *transferService) CreateTransfer(ctx context.Context, transfer *models.T
 		newFile := models.File{
 			Filename:     fileHeader.Filename,
 			OriginalName: fileHeader.Filename,
-			Size:         fileHeader.Size,
+			SizeFile:     fileHeader.Size,
 			MimeType:     fileHeader.Header.Get("Content-Type"),
 			StoragePath:  storagePath,
 			Bucket:       bucketName,
@@ -61,7 +61,7 @@ func (t *transferService) CreateTransfer(ctx context.Context, transfer *models.T
 	transfer.Files = uploadedFiles
 
 	// Guardado transaccional en DB usando el Repo
-	if err := t.repo.Create(ctx, transfer); err != nil {
+	if err := t.repo.CreateTransfer(ctx, transfer); err != nil {
 		return nil, fmt.Errorf("falló persistencia en DB: %w", err)
 	}
 
@@ -70,5 +70,5 @@ func (t *transferService) CreateTransfer(ctx context.Context, transfer *models.T
 
 // GetTransferByToken implements [TransferService].
 func (t *transferService) GetTransferByToken(ctx context.Context, token string) (*models.Transfer, error) {
-	return t.repo.GetByToken(ctx, token)
+	panic("")
 }
