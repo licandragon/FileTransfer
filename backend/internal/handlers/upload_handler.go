@@ -38,10 +38,7 @@ type CreateTransferResponse struct {
 
 type FileUploadResponse struct {
 	FileIndex    int    `json:"file_index"`
-	Filename     string `json:"file_name"`
 	OriginalName string `json:"original_name"`
-	SizeFile     int64  `json:"size_file"`
-	MimeType     string `json:"mime_type"`
 	StatusFile   string `json:"status_file"`
 }
 
@@ -72,6 +69,7 @@ type TransferDownloadResponse struct {
 }
 
 type FileDetail struct {
+	FileIndex    int    `json:"file_index"`
 	OriginalName string `json:"original_name"`
 	Size         int64  `json:"size"`
 	MimeType     string `json:"mime_type"`
@@ -101,6 +99,8 @@ func (h *TransferHandler) CreateTransfer(c fiber.Ctx) error {
 		log.Printf("Error binding: %v", err)
 		return c.Status(400).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
+	fmt.Println(req.SenderEmail)
+	fmt.Println(req.TotalFiles)
 	if req.SenderEmail == "" || req.TotalFiles <= 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "Faltan campos obligatorios"})
 	}
@@ -125,14 +125,19 @@ func (h *TransferHandler) CreateTransfer(c fiber.Ctx) error {
 	}
 
 	return c.Status(201).JSON(CreateTransferResponse{
-		UploadToken: result.UploadToken,
-		Status:      result.Status,
+		UploadToken:    result.UploadToken,
+		StatusTransfer: result.StatusTransfer,
 	})
 }
 
-// POST /api/transfers/upload/:uploadToken/files
+// POST /api/transfer/:uploadToken/files
 func (h *TransferHandler) AddFile(c fiber.Ctx) error {
-	uploadToken := c.Params("uploadToken")
+	fmt.Println(c)
+	uploadTokenStr := c.Params("uploadToken")
+	uploadToken, err := uuid.Parse(uploadTokenStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "upload_token inválido"})
+	}
 
 	fileIndexStr := c.FormValue("file_index")
 	if fileIndexStr == "" {
@@ -142,6 +147,7 @@ func (h *TransferHandler) AddFile(c fiber.Ctx) error {
 	if err != nil || fileIndex < 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "file_index inválido"})
 	}
+	fmt.Println("fileIndex:", fileIndex)
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -155,31 +161,36 @@ func (h *TransferHandler) AddFile(c fiber.Ctx) error {
 
 	return c.JSON(FileUploadResponse{
 		FileIndex:    uploaded.FileIndex,
-		Filename:     uploaded.Filename,
 		OriginalName: uploaded.OriginalName,
-		Size:         uploaded.Size,
-		MimeType:     uploaded.MimeType,
-		Status:       uploaded.Status,
+		StatusFile:   uploaded.StatusFile,
 	})
 }
 
-// PATCH /api/transfers/upload/:uploadToken/complete
+// PATCH /api/transfer/:uploadToken/complete
 func (h *TransferHandler) CompleteTransfer(c fiber.Ctx) error {
-	uploadToken := c.Params("uploadToken")
+	uploadTokenStr := c.Params("uploadToken")
+	uploadToken, err := uuid.Parse(uploadTokenStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "upload_token inválido"})
+	}
 
 	downloadToken, err := h.service.CompleteTransfer(c.Context(), uploadToken)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(CompleteTransferResponse{
+	return c.Status(200).JSON(CompleteTransferResponse{
 		DownloadToken: downloadToken,
 	})
 }
 
 // GET /api/download/:downloadToken
 func (h *TransferHandler) DownloadInfo(c fiber.Ctx) error {
-	downloadToken := c.Params("downloadToken")
+	downloadTokenStr := c.Params("downloadToken")
+	downloadToken, err := uuid.Parse(downloadTokenStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "upload_token inválido"})
+	}
 
 	transfer, err := h.service.GetTransferByDownloadToken(c.Context(), downloadToken)
 	if err != nil {
@@ -189,13 +200,14 @@ func (h *TransferHandler) DownloadInfo(c fiber.Ctx) error {
 	files := make([]FileDetail, len(transfer.Files))
 	for i, f := range transfer.Files {
 		files[i] = FileDetail{
+			FileIndex:    f.FileIndex,
 			OriginalName: f.OriginalName,
-			Size:         f.Size,
+			Size:         f.SizeFile,
 			MimeType:     f.MimeType,
 		}
 	}
 
-	return c.JSON(TransferDownloadResponse{
+	return c.Status(200).JSON(TransferDownloadResponse{
 		SenderEmail:  transfer.SenderEmail,
 		SubjectEmail: transfer.SubjectEmail,
 		MessageEmail: transfer.MessageEmail,
@@ -206,7 +218,12 @@ func (h *TransferHandler) DownloadInfo(c fiber.Ctx) error {
 
 // GET /api/download/:downloadToken/files/:fileIndex
 func (h *TransferHandler) DownloadFile(c fiber.Ctx) error {
-	downloadToken := c.Params("downloadToken")
+	downloadTokenStr := c.Params("downloadToken")
+	downloadToken, err := uuid.Parse(downloadTokenStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "upload_token inválido"})
+	}
+
 	fileIndexStr := c.Params("fileIndex")
 	fileIndex, err := strconv.Atoi(fileIndexStr)
 	if err != nil || fileIndex < 0 {

@@ -63,9 +63,9 @@ cd FileTransfer
 
 ---
 
-## ⚙️ Backend
+## ⚙️ **Backend**
 
-## Configuración
+### Configuración
 
 ```bash
 cd backend
@@ -88,7 +88,7 @@ SUPABASE_BUCKET=uploads
 
 ---
 
-## Ejecutar Backend
+### Ejecutar Backend
 
 ```bash
 go run ./cmd/server
@@ -102,7 +102,75 @@ http://localhost:3000
 
 ---
 
-## 🎨 Frontend
+### 📡 **API Endpoints**
+
+#### **Iniciar transferencia**
+
+```bash
+POST /api/transfer/ini
+```
+
+Se genera una nueva transferencia y retorna token valido para subida de archivo {upload_token}.
+
+---
+
+#### **Subir archivos**
+
+```bash
+POST /api/transfer/{upload_Token}/file
+```
+
+Sube archivo a transferencia con token valido.
+
+---
+
+```bash
+PATCH /api/transfer/complete
+```
+
+Finaliza transferencia retornando el token de url publica (download_token).
+
+---
+
+#### **Descargar archivos**
+
+```bash
+GET /api/download/{download_token}
+```
+
+Descarga archivo mediante token público.
+
+---
+
+```bash
+GET /api/download/{download_token}/files/
+```
+
+Genera el url firmado para la descarga un archivo en especifico, el enlace es valido durante 1hr.
+
+---
+
+#### **Información archivo**
+
+```bash
+GET /file/{token}
+```
+
+Obtiene metadata del archivo.
+
+---
+
+#### **Eliminar archivo (Opcional)**
+
+```bash
+DELETE /file/{token}
+```
+
+Elimina archivo manualmente.
+
+---
+
+## 🎨 **Frontend**
 
 ```bash
 cd frontend
@@ -137,49 +205,7 @@ http://localhost:5173
 
 ---
 
-## 📡 API Endpoints
-
-## Subir archivos
-
-```bash
-POST /upload
-```
-
-Sube uno o varios archivos.
-
----
-
-## Descargar archivos
-
-```bash
-GET /download/{token}
-```
-
-Descarga archivo mediante token público.
-
----
-
-## Información archivo
-
-```bash
-GET /file/{token}
-```
-
-Obtiene metadata del archivo.
-
----
-
-## Eliminar archivo (Opcional)
-
-```bash
-DELETE /file/{token}
-```
-
-Elimina archivo manualmente.
-
----
-
-## 🔐 Seguridad
+## 🔐 **Seguridad**
 
 Seguridad a implementar:
 

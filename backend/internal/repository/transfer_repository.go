@@ -17,8 +17,8 @@ type TransferRepository interface {
 	CompleteTransfer(ctx context.Context, transferID, uploadToken uuid.UUID) (uuid.UUID, error)
 	GetByUploadToken(ctx context.Context, uploadToken uuid.UUID) (*models.Transfer, error)
 	GetByDownloadToken(ctx context.Context, downloadToken uuid.UUID) (*models.Transfer, error)
-	GetByID(ctx context.Context, id string) (*models.Transfer, error)
-	ListByUser(ctx context.Context, userID string) ([]models.Transfer, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Transfer, error)
+	ListByUser(ctx context.Context, userID uuid.UUID) ([]models.Transfer, error)
 	IncrementDownloadCount(ctx context.Context, downloadToken uuid.UUID) error
 	DeletePendingTransfer(ctx context.Context, transferID uuid.UUID) error
 	CountUploadedFiles(ctx context.Context, transferID uuid.UUID) (int, error)
@@ -36,6 +36,7 @@ func (r *transferRepo) CreateTransfer(ctx context.Context, transfer *models.Tran
 	transfer.UploadToken = uuid.New()
 	transfer.DownloadToken = uuid.New()
 	transfer.StatusTransfer = "pending"
+	fmt.Println(transfer)
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("error iniciando transacción: %w", err)
@@ -62,6 +63,11 @@ func (r *transferRepo) CreateTransfer(ctx context.Context, transfer *models.Tran
 		transfer.StatusTransfer,
 		transfer.TotalFiles,
 	).Scan(&transfer.ID, &transfer.DownloadCount, &transfer.CreatedAt)
+
+	if err != nil {
+		return fmt.Errorf("error al crear transferencia: %w", err)
+		// ⚠️ Aquí se retorna, y el defer ejecuta Rollback. Correcto.
+	}
 
 	// Confirmar todos los cambios
 	return tx.Commit(ctx)
@@ -149,7 +155,7 @@ func (r *transferRepo) CompleteTransfer(ctx context.Context, transferID, uploadT
 	// Obtener la transferencia con bloqueo para evitar condiciones de carrera
 	var transfer models.Transfer
 	err = tx.QueryRow(ctx,
-		`SELECT id, upload_token, download_token, file_count, status_transfer
+		`SELECT id, upload_token, download_token, total_files, status_transfer
         	FROM transfers WHERE id = $1 FOR UPDATE`, transferID,
 	).Scan(&transfer.ID, &transfer.UploadToken, &transfer.DownloadToken,
 		&transfer.TotalFiles, &transfer.StatusTransfer)
@@ -238,7 +244,7 @@ func (r *transferRepo) GetByDownloadToken(ctx context.Context, downloadToken uui
 }
 
 // GetByID obtiene una transferencia por su UUID interno.
-func (r *transferRepo) GetByID(ctx context.Context, id string) (*models.Transfer, error) {
+func (r *transferRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Transfer, error) {
 	query := `
     SELECT id, download_token, upload_token, download_count, sender_email,
 		subject_email, message_email, recipients, user_id, expires_at,
@@ -295,7 +301,7 @@ func (r *transferRepo) GetByUploadToken(ctx context.Context, uploadToken uuid.UU
 // getFilesByTransferID es un helper privado que carga los archivos de una transferencia.
 func (r *transferRepo) getFilesByTransferID(ctx context.Context, transferID uuid.UUID) ([]models.File, error) {
 	query := `
-    SELECT id, transfer_id, file_index, filename, original_name, size,
+    SELECT id, transfer_id, file_index, file_name, original_name, size_file,
            mime_type, storage_path, bucket, status_file, created_at
     FROM files
     WHERE transfer_id = $1
@@ -322,6 +328,6 @@ func (r *transferRepo) getFilesByTransferID(ctx context.Context, transferID uuid
 }
 
 // ListByUser implements [TransferRepository]. Pendiente para implementar
-func (r *transferRepo) ListByUser(ctx context.Context, userID string) ([]models.Transfer, error) {
+func (r *transferRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]models.Transfer, error) {
 	panic("unimplemented")
 }

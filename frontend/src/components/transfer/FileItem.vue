@@ -5,7 +5,7 @@
         {{ item.type === 'folder' ? '📁' : '📄' }} {{ item.name }}
       </span>
       <span class="text-[10px] text-gray-500 uppercase tracking-tight">
-        {{ item.type === 'folder' ? `${item.files.length} elementos` : sizeLabel }}
+        {{ item.type === 'folder' ? `${item.files.length} elementos` : displaySize }}
       </span>
     </div>
     <button @click="$emit('remove')" class="text-gray-500 hover:text-red-400 p-1 transition-colors">✕</button>
@@ -13,6 +13,34 @@
 </template>
 
 <script setup>
-const props = defineProps(['item', 'sizeLabel']);
+import { computed } from 'vue';
+
+const props = defineProps({
+  item: {
+    type: Object,
+    required: true
+  }
+});
 defineEmits(['remove']);
+
+const formatSize = (bytes) => {
+  if (!bytes || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+};
+
+const displaySize = computed(() => {
+  if (props.item.type === 'file' && props.item.file) {
+    // Si es un archivo, tomamos el tamaño nativo .size
+    return formatSize(props.item.file.size);
+  } else if (props.item.type === 'folder' && props.item.files) {
+    // (Opcional) Si es carpeta, suma el tamaño de todos sus archivos internos
+    const totalBytes = props.item.files.reduce((acc, f) => acc + (f.size || 0), 0);
+    return formatSize(totalBytes);
+  }
+  return '0 B';
+});
+
 </script>

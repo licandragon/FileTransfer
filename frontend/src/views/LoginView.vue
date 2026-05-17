@@ -113,7 +113,6 @@
         </button>
 
       </form>
-      <DiscordLoginButton class="btn-submit" />
 
     </div>
 
