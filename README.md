@@ -253,3 +253,11 @@ Ejecutar frontend:
 ```bash
 npm run dev
 ```
+
+## 🤖 **Uso de IA**
+
+Durante el  desarrollo se hizo uso de la IA para lo siguiente:
+
+* Consultar documentacion
+* Correcciones de bugs y mejorar la experincia del usuario UI/UX
+* Corregir flujo de trajo para que fuera mas estructurado y escalable
