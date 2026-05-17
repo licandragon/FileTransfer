@@ -36,6 +36,10 @@ type CreateTransferResponse struct {
 	StatusTransfer string    `json:"status_transfer"`
 }
 
+type TransferStatusResponse struct {
+	CompletedIndices []int `json:"completedIndices"`
+}
+
 type FileUploadResponse struct {
 	FileIndex    int    `json:"file_index"`
 	OriginalName string `json:"original_name"`
@@ -147,7 +151,10 @@ func (h *TransferHandler) AddFile(c fiber.Ctx) error {
 	if err != nil || fileIndex < 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "file_index inválido"})
 	}
-	fmt.Println("fileIndex:", fileIndex)
+	//Test para probar error en subida de algun archivo
+	/*if fileIndex == 1 {
+		return c.Status(500).JSON(fiber.Map{"error": "Simulación: Conexión perdida con el almacenamiento"})
+	}*/
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -163,6 +170,24 @@ func (h *TransferHandler) AddFile(c fiber.Ctx) error {
 		FileIndex:    uploaded.FileIndex,
 		OriginalName: uploaded.OriginalName,
 		StatusFile:   uploaded.StatusFile,
+	})
+}
+
+// GET /api/transfer/:uploadToken/status
+func (h *TransferHandler) GetUploadStatus(c fiber.Ctx) error {
+	uploadTokenStr := c.Params("uploadToken")
+	uploadToken, err := uuid.Parse(uploadTokenStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "upload_token inválido"})
+	}
+
+	indices, err := h.service.GetTransferUploadStatus(c.Context(), uploadToken)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(TransferStatusResponse{
+		CompletedIndices: indices,
 	})
 }
 

@@ -4,7 +4,7 @@
     :class="showOptions ? 'overflow-visible' : 'overflow-hidden'">
     <!-- Toast para mostrar mensajes de error -->
     <Transition name="toast">
-      <div v-if="error"
+      <div v-if="error && !isUploading"
         class="absolute top-4 left-4 right-4 bg-red-500 opacity-90 text-white rounded-2xl z-[90] p-3 text-xs font-medium shadow-xl border border-white/10 flex items-center justify-between gap-2">
         <span class="flex items-center gap-1.5"> ⚠️ {{ error }} </span>
         <!-- Botón para cerrar manualmente -->
@@ -16,16 +16,19 @@
 
     <!-- Caracteristica en desarrollo-->
     <Transition name="toast">
-      <div v-if="folderFeatureInDevelopment" class="absolute top-4 left-4 right-4 bg-amber-500 text-white rounded-2xl z-[90] p-3 text-xs font-medium shadow-xl border border-white/10 flex items-center justify-between">
+      <div v-if="folderFeatureInDevelopment"
+        class="absolute top-4 left-4 right-4 bg-amber-500 text-white rounded-2xl z-[90] p-3 text-xs font-medium shadow-xl border border-white/10 flex items-center justify-between">
         <span>🚀 La carga de carpetas está en desarrollo. ¡Disponible pronto!</span>
-        <button @click="folderFeatureInDevelopment = false" class="hover:bg-white/20 p-1 rounded-lg transition-colors text-sm leading-none">
+        <button @click="folderFeatureInDevelopment = false"
+          class="hover:bg-white/20 p-1 rounded-lg transition-colors text-sm leading-none">
           ✕
         </button>
       </div>
     </Transition>
 
     <Transition name="fade">
-      <TransferProgress v-if="isUploading" :progress="uploadProgress" class="absolute inset-0 z-[60]" />
+      <TransferProgress v-if="isUploading" :progress="uploadProgress" :error="error" @cancel="resetAll"
+        @retry="handleStartUpload" class="absolute inset-0 z-[60]" />
     </Transition>
 
     <Transition name="fade">
@@ -34,7 +37,8 @@
     </Transition>
 
     <div :class="{
-      'opacity-20 pointer-events-none grayscale-[50%]': isUploading || isSuccess,
+      'opacity-20 pointer-events-none grayscale-[50%]':
+        isUploading || isSuccess,
     }" class="transition-all duration-500">
       <div class="mb-5">
         <div v-if="items.length === 0" class="grid grid-cols-2 gap-3">
@@ -150,6 +154,8 @@ import TransferSuccess from "./TransferSuccess.vue";
 const { items, files, addValidFiles, removeItem } = useFileProcessor();
 const { startTransfer, isUploading, uploadProgress, error } = useTransferApi();
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024
+
 // Estados UI
 const fileInput = ref(null);
 const folderInput = ref(null);
@@ -159,6 +165,8 @@ const showExpiry = ref(false);
 const showOptions = ref(false);
 const transferMode = ref("email"); // Controlado por TransferOptions
 const generatedLink = ref("");
+// Guarda la sesión de carga actual por si se requieren reintentos de subida
+const currentUploadToken = ref(null);
 
 // Form
 const recipientEmails = ref([]);
@@ -183,13 +191,13 @@ const selectedExpiry = ref(expiryOptions[0]);
 const selectFiles = () => fileInput.value.click();
 
 //Se deactiva temporalmente en lo que se desarrolla el manejo de estructura por carpetas
-const folderFeatureInDevelopment = ref(false)
+const folderFeatureInDevelopment = ref(false);
 const selectFolder = () => {
-    folderFeatureInDevelopment.value = true
-    setTimeout(() => {
-      folderFeatureInDevelopment.value = false
-    }, 3000)
-}
+  folderFeatureInDevelopment.value = true;
+  setTimeout(() => {
+    folderFeatureInDevelopment.value = false;
+  }, 3000);
+};
 const onFilesSelected = (e) => {
   addValidFiles(Array.from(e.target.files));
   e.target.value = null;
@@ -221,10 +229,18 @@ const handleStartUpload = () => {
 */
 
 const handleStartUpload = async () => {
-  if (files.value.length === 0) return alert("Añade archivos primero");
-  if (!senderEmail.value) return alert("El email del remitente es obligatorio");
+  // 1. Validaciones iniciales
+  if (files.value.length === 0) { 
+    error.value = "Añade archivos primero"; 
+    return; 
+  }
+  if (!senderEmail.value) { 
+    error.value = "Tu correo es obligatorio"; 
+    return; 
+  }
   if (transferMode.value === "email" && recipientEmails.value.length === 0) {
-    return alert("Añade al menos un destinatario");
+    error.value = "Añade al menos un destinatario para enviar el correo.";
+    return;
   }
 
   try {
@@ -237,22 +253,40 @@ const handleStartUpload = async () => {
       expiresAt: selectedExpiry.value.value,
     };
 
-    console.log(items)
-    // startTransfer ahora es la función de Axios
-    // Pasamos items.value que contiene los archivos reales del useFileProcessor
-    const downloadToken = await startTransfer(metadata, files.value);
-
-    // Si llegamos aquí, la subida fue exitosa
-    generatedLink.value = `${window.location.origin}/download/${downloadToken}`;
+    console.log("Iniciando transferencia con items:", items.value);
+    
+    // Ejecuta la subida secuencial del composable
+    const token = await startTransfer(metadata, files.value, currentUploadToken.value);
+    
+    // Si todo sale bien, generamos el éxito
+    generatedLink.value = `${window.location.origin}/download/${token}`;
     isSuccess.value = true;
+    currentUploadToken.value = null;
+
   } catch (err) {
-    // El error ya se guarda en la variable 'error' del composable
-    alert("Error en la transferencia: " + err);
+    // 💡 AQUÍ ESTABA EL ERROR: El bloque catch captura 'err' perfectamente
+    if (err.response?.data?.uploadToken) {
+      currentUploadToken.value = err.response.data.uploadToken;
+    } else if (!currentUploadToken.value) {
+      const urlParts = err.config?.url?.split('/');
+      if (urlParts && urlParts.length > 2) {
+        const tokenIndex = urlParts.indexOf('transfer');
+        if (tokenIndex !== -1 && urlParts[tokenIndex + 1]) {
+          const tokenCandidate = urlParts[tokenIndex + 1];
+          if (tokenCandidate && tokenCandidate !== 'init') {
+            currentUploadToken.value = tokenCandidate;
+          }
+        }
+      }
+    }
+    console.error("Proceso de subida detenido:", err.message);
   }
 };
 
 const resetAll = () => {
   isSuccess.value = false;
+  currentUploadToken.value = null;
+  clearError();
   items.value = [];
   recipientEmails.value = [];
   senderEmail.value = "";
@@ -262,9 +296,8 @@ const resetAll = () => {
 
 // Función para limpiar el error manualmente
 const clearError = () => {
-  if (error) error.value = null
-}
-
+  if (error) error.value = null;
+};
 
 // Click Outside global
 const handleClickOutside = (e) => {
@@ -273,12 +306,12 @@ const handleClickOutside = (e) => {
 };
 
 watch(error, (newError) => {
-  if (newError) {
+  if (newError && !isUploading.value) {
     setTimeout(() => {
-      clearError()
-    }, 4000)
+      clearError();
+    }, 4000);
   }
-})
+});
 onMounted(() => window.addEventListener("click", handleClickOutside));
 onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 </script>

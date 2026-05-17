@@ -17,6 +17,7 @@ import (
 type TransferService interface {
 	CreateTransfer(ctx context.Context, transfer *models.Transfer) (*models.Transfer, error)
 	AddFileToTransfer(ctx context.Context, fileHeader *multipart.FileHeader, uploadToken uuid.UUID, fileIndex int) (*models.File, error)
+	GetTransferUploadStatus(ctx context.Context, uploadToken uuid.UUID) ([]int, error)
 	CompleteTransfer(ctx context.Context, uploadToken uuid.UUID) (uuid.UUID, error)
 	GetTransferByUploadToken(ctx context.Context, uploadToken uuid.UUID) (*models.Transfer, error)
 	GetTransferByDownloadToken(ctx context.Context, downloadToken uuid.UUID) (*models.Transfer, error)
@@ -100,6 +101,22 @@ func (s *transferService) AddFileToTransfer(
 	}
 
 	return file, nil
+}
+
+func (s *transferService) GetTransferUploadStatus(ctx context.Context, uploadToken uuid.UUID) ([]int, error) {
+	// Se valida que la transferencia exista
+	_, err := s.repo.GetByUploadToken(ctx, uploadToken)
+	if err != nil {
+		return nil, fmt.Errorf("transferencia no encontrada: %w", err)
+	}
+
+	// Se obtienen los indices completados
+	indices, err := s.repo.GetUploadedIndices(ctx, uploadToken)
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener índices subidos: %w", err)
+	}
+
+	return indices, nil
 }
 
 // CompleteTransfer finaliza la transferencia y devuelve el download_token.

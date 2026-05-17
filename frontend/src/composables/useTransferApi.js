@@ -26,7 +26,17 @@ export function useTransferApi() {
         return data.upload_token;
     }
 
-    // 2. Subir archivo con callback para calcular el progreso global
+    // 3. Consulta el estatus del la transferencia actual
+    async function getTransferStatus(uploadToken) {
+        try {
+            const { data } = await api.get(`/transfer/${uploadToken}/status`);
+            return data.completedIndices || []; // Retorna ej: [0, 1]
+        } catch (err) {
+            console.warn("No se pudo recuperar el estado de reintento, se asumirá limpio:", err);
+            return [];
+        }
+    }
+    // 3. Subir archivo con callback para calcular el progreso global
     async function uploadFile(uploadToken, file, fileIndex, onProgressCallback) {
         const formData = new FormData();
         formData.append("file", file);
@@ -73,56 +83,77 @@ export function useTransferApi() {
     }
 
     // Subida de archivos
-    async function startTransfer(metadata, files) {
-         console.log("Start transfer archivos", files)
+    async function startTransfer(metadata, files, existingToken = null) {
+        console.log("Start transfer archivos", files)
         isUploading.value = true;
         error.value = null;
-        uploadProgress.value = 0;
+        let uploadToken = existingToken;
+        let completedIndices = [];
 
         try {
+            //
+            if (!uploadToken) {
+                //Se genera transfer nuevo
+                uploadProgress.value = 0;
+
+                uploadToken = await createTransfer(metadata);
+            } else {
+                //En caso de reintento por error en la red o subida de archivo
+                completedIndices = await getTransferStatus(uploadToken);
+                console.log("Índices recuperados del servidor para reintento:", completedIndices);
+            }
+
             // Calcular el peso total de todos los archivos combinados
             const totalBytesGlobal = files.reduce((acc, file) => acc + file.size, 0);
             const bytesSubidosPorArchivo = new Array(files.length).fill(0);
 
-            const uploadToken = await createTransfer(metadata);
-
             for (let i = 0; i < files.length; i++) {
-                await uploadFile(
-                    uploadToken,
-                    files[i],
-                    i,
-                    (bytesSubidosEsteArchivo) => {
-                        // Guardamos cuántos bytes lleva este archivo actual
-                        bytesSubidosPorArchivo[i] = bytesSubidosEsteArchivo;
+                if (completedIndices.includes(i)) {
+                    console.log(`[Skip] Archivo index ${i} (${files[i].name}) ya existe.`);
 
-                        // Sumamos los bytes de todos los archivos para sacar el porcentaje real global
-                        const totalBytesSubidosProcesados = bytesSubidosPorArchivo.reduce(
-                            (acc, bytes) => acc + bytes,
-                            0,
-                        );
-                        uploadProgress.value = Math.round(
-                            (totalBytesSubidosProcesados * 100) / totalBytesGlobal,
-                        );
-                    },
-                );
+                    bytesSubidosPorArchivo[i] = files[i].size; // 👈 Seteamos el peso real aquí
+
+                    const totalBytesSubidosProcesados = bytesSubidosPorArchivo.reduce((acc, b) => acc + b, 0);
+                    uploadProgress.value = Math.round((totalBytesSubidosProcesados * 100) / totalBytesGlobal);
+                    continue;
+                }
+
+                    await uploadFile(
+                        uploadToken,
+                        files[i],
+                        i,
+                        (bytesSubidosEsteArchivo) => {
+                            // Guardamos cuántos bytes lleva este archivo actual
+                            bytesSubidosPorArchivo[i] = bytesSubidosEsteArchivo;
+
+                            // Sumamos los bytes de todos los archivos para sacar el porcentaje real global
+                            const totalBytesSubidosProcesados = bytesSubidosPorArchivo.reduce(
+                                (acc, bytes) => acc + bytes,
+                                0,
+                            );
+                            uploadProgress.value = Math.round(
+                                (totalBytesSubidosProcesados * 100) / totalBytesGlobal,
+                            );
+                        },
+                    );
+                
             }
+                const downloadToken = await completeTransfer(uploadToken);
+                isUploading.value = false;
+                return downloadToken;
+            } catch (err) {
+                error.value = err.response?.data?.error || err.message;
 
-            const downloadToken = await completeTransfer(uploadToken);
-            isUploading.value = false;
-            return downloadToken;
-        } catch (err) {
-            error.value = err.response?.data?.error || err.message;
-            isUploading.value = false;
-            throw err;
+                throw err;
+            }
         }
-    }
 
     return {
-        uploadProgress,
-        isUploading,
-        error,
-        startTransfer,
-        getDownloadInfo,
-        downloadFile,
-    };
-}
+            uploadProgress,
+            isUploading,
+            error,
+            startTransfer,
+            getDownloadInfo,
+            downloadFile,
+        };
+    }

@@ -34,6 +34,8 @@ func SetupRoutes(app *fiber.App, db *pgxpool.Pool) {
 
 	upload.Post("/:uploadToken/file", handler.AddFile)
 
+	api.Get("/transfers/:uploadToken/status", handler.GetUploadStatus)
+
 	// Se finaliza la transferencia  y retorna
 	upload.Patch(":uploadToken/complete", handler.CompleteTransfer)
 

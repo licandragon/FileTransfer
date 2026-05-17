@@ -22,6 +22,8 @@ type TransferRepository interface {
 	IncrementDownloadCount(ctx context.Context, downloadToken uuid.UUID) error
 	DeletePendingTransfer(ctx context.Context, transferID uuid.UUID) error
 	CountUploadedFiles(ctx context.Context, transferID uuid.UUID) (int, error)
+
+	GetUploadedIndices(ctx context.Context, uploadToken uuid.UUID) ([]int, error)
 }
 type transferRepo struct {
 	db *pgxpool.Pool
@@ -141,6 +143,39 @@ func (r *transferRepo) AddOrRetryFile(ctx context.Context, file *models.File) (b
 		return false, fmt.Errorf("error al insertar archivo: %w", err)
 	}
 	return true, nil
+}
+
+// GetUploadedIndices devuelve un slice con los índices de los archivos que ya se subieron con éxito.
+func (r *transferRepo) GetUploadedIndices(ctx context.Context, uploadToken uuid.UUID) ([]int, error) {
+	// Inicializamos el slice como un array vacío asignando memoria para evitar que retorne 'null' en JSON
+	indices := make([]int, 0)
+
+	query := `
+		SELECT f.file_index
+		FROM files f
+		INNER JOIN transfers t ON f.transfer_id = t.id
+		WHERE t.upload_token = $1 AND f.status_file = 'uploaded'
+		ORDER BY f.file_index ASC`
+
+	rows, err := r.db.Query(ctx, query, uploadToken)
+	if err != nil {
+		return nil, fmt.Errorf("error al consultar índices subidos: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var idx int
+		if err := rows.Scan(&idx); err != nil {
+			return nil, fmt.Errorf("error al escanear índice: %w", err)
+		}
+		indices = append(indices, idx)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return indices, nil
 }
 
 // CompleteTransfer verifica que el upload_token sea correcto, que todos los archivos
